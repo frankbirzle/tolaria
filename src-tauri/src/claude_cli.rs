@@ -297,7 +297,6 @@ fn agent_tools(permission_mode: AiAgentPermissionMode) -> &'static str {
     }
 }
 
-
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -761,7 +760,10 @@ mod tests {
             args,
             ["--strict-mcp-config", "--permission-mode", "acceptEdits"]
         );
-        assert_args_contain!(args, ["--allowedTools", "Read,Edit,MultiEdit,Write,Glob,Grep,LS"]);
+        assert_args_contain!(
+            args,
+            ["--allowedTools", "Read,Edit,MultiEdit,Write,Glob,Grep,LS"]
+        );
         assert_no_arg_contains!(args, "Bash");
         assert_args_lack!(args, ["--tools"]);
         assert_args_lack!(args, ["--dangerously-skip-permissions"]);
@@ -777,7 +779,13 @@ mod tests {
         .unwrap();
 
         assert_args_contain!(args, ["--strict-mcp-config"]);
-        assert_args_contain!(args, ["--allowedTools", "Read,Edit,MultiEdit,Write,Glob,Grep,LS,Bash"]);
+        assert_args_contain!(
+            args,
+            [
+                "--allowedTools",
+                "Read,Edit,MultiEdit,Write,Glob,Grep,LS,Bash"
+            ]
+        );
         assert_args_lack!(args, ["--dangerously-skip-permissions"]);
     }
 
