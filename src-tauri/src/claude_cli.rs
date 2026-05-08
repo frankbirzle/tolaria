@@ -230,8 +230,8 @@ fn build_chat_args(req: &ChatStreamRequest) -> Vec<String> {
         "stream-json".into(),
         "--verbose".into(),
         "--include-partial-messages".into(),
-        "--tools".into(),
-        String::new(), // empty string → disable all built-in tools
+        "--disallowedTools".into(),
+        "Bash,Glob,Grep,Read,Edit,Write,NotebookEdit,WebFetch,WebSearch,TodoWrite,Task".into(),
     ];
 
     if let Some(ref sp) = req.system_prompt {
@@ -260,7 +260,7 @@ where
 }
 
 /// Build CLI arguments for an agent stream request.
-/// Native tools (bash, read, write, edit) are enabled by default — no `--tools ""`.
+/// Native tools (bash, read, write, edit) are restricted via `--allowedTools`.
 fn build_agent_args(req: &AgentStreamRequest) -> Result<Vec<String>, String> {
     let mcp_config = build_mcp_config(&req.vault_path)?;
 
@@ -276,15 +276,9 @@ fn build_agent_args(req: &AgentStreamRequest) -> Result<Vec<String>, String> {
         "--strict-mcp-config".into(),
         "--permission-mode".into(),
         "acceptEdits".into(),
-        "--tools".into(),
+        "--allowedTools".into(),
         agent_tools(req.permission_mode).into(),
-        "--no-session-persistence".into(),
     ];
-
-    if let Some(allowed_tools) = preapproved_agent_tools(req.permission_mode) {
-        args.push("--allowedTools".into());
-        args.push(allowed_tools.into());
-    }
 
     if let Some(ref sp) = req.system_prompt {
         if !sp.is_empty() {
@@ -303,12 +297,6 @@ fn agent_tools(permission_mode: AiAgentPermissionMode) -> &'static str {
     }
 }
 
-fn preapproved_agent_tools(permission_mode: AiAgentPermissionMode) -> Option<&'static str> {
-    match permission_mode {
-        AiAgentPermissionMode::Safe => None,
-        AiAgentPermissionMode::PowerUser => Some("Bash"),
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -773,9 +761,9 @@ mod tests {
             args,
             ["--strict-mcp-config", "--permission-mode", "acceptEdits"]
         );
-        assert_args_contain!(args, ["Read,Edit,MultiEdit,Write,Glob,Grep,LS"]);
+        assert_args_contain!(args, ["--allowedTools", "Read,Edit,MultiEdit,Write,Glob,Grep,LS"]);
         assert_no_arg_contains!(args, "Bash");
-        assert_args_lack!(args, ["--allowedTools"]);
+        assert_args_lack!(args, ["--tools"]);
         assert_args_lack!(args, ["--dangerously-skip-permissions"]);
     }
 
@@ -789,12 +777,12 @@ mod tests {
         .unwrap();
 
         assert_args_contain!(args, ["--strict-mcp-config"]);
-        assert_args_contain!(args, ["Read,Edit,MultiEdit,Write,Glob,Grep,LS,Bash"]);
+        assert_args_contain!(args, ["--allowedTools", "Read,Edit,MultiEdit,Write,Glob,Grep,LS,Bash"]);
         assert_args_lack!(args, ["--dangerously-skip-permissions"]);
     }
 
     #[test]
-    fn agent_args_preapprove_bash_for_power_user_runs() {
+    fn agent_args_power_user_includes_bash_in_allowed_tools() {
         let args = build_agent_args(&agent_request!(
             "Run a local script",
             None,
@@ -802,7 +790,10 @@ mod tests {
         ))
         .unwrap();
 
-        assert_eq!(arg_value_after(&args, "--allowedTools"), Some("Bash"));
+        assert_eq!(
+            arg_value_after(&args, "--allowedTools"),
+            Some("Read,Edit,MultiEdit,Write,Glob,Grep,LS,Bash")
+        );
     }
 
     #[test]
@@ -1395,9 +1386,9 @@ mod tests {
         )) {
             assert_args_contain!(args, ["-p", "create note", "--mcp-config"]);
             assert_args_contain!(args, ["--strict-mcp-config", "--permission-mode"]);
-            assert_args_contain!(args, ["acceptEdits", "--tools"]);
+            assert_args_contain!(args, ["acceptEdits", "--allowedTools"]);
             assert_args_contain!(args, ["Read,Edit,MultiEdit,Write,Glob,Grep,LS"]);
-            assert_args_contain!(args, ["--no-session-persistence"]);
+            assert_args_lack!(args, ["--tools", "--no-session-persistence"]);
             assert_args_lack!(
                 args,
                 [
